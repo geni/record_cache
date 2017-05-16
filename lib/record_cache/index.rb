@@ -113,26 +113,30 @@ module RecordCache
       case type
       when :first
         keys.each do |key|
-          model = records_by_key[key].instantiate_first(model_class, full_record?)
+          next unless record = records_by_key[key]
+          model = record.instantiate_first(model_class, full_record?)
           return model if model
         end
         return nil
       when :all
         models = []
         keys.each do |key|
-          models.concat( records_by_key[key].instantiate(model_class, full_record?) )
+          next unless record = records_by_key[key]
+          models.concat( record.instantiate(model_class, full_record?) )
         end
         models
       when :set, :ids
         ids = []
         keys.each do |key|
-          ids.concat( records_by_key[key].ids(model_class) )
+          next unless record = records_by_key[key]
+          ids.concat( record.ids(model_class) )
         end
         type == :set ? set_class.new(ids) : ids
       when :raw
         raw_records = []
         keys.each do |key|
-          raw_records.concat( records_by_key[key].records(model_class) )
+          next unless record = records_by_key[key]
+          raw_records.concat( record.records(model_class) )
         end
         raw_records
       end
