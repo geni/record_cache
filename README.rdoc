@@ -22,6 +22,12 @@ Invalidation is handled for you using callbacks. Be careful though if you modify
 directly using SQL. Both update_all and delete_all handle invalidations for you, but other
 direct SQL will not.
 
+== Testing:
+
+  # ensure memcached is installed and in the path
+
+  bundle exec rake test TEST_OPTS="--verbose --no-show-detail-immediately"
+
 == Install:
 
   gem install record_cache
