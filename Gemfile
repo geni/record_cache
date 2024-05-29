@@ -24,3 +24,10 @@ group :development do
   gem 'shoulda', '~>3'
   gem 'test-unit'
 end
+
+group :vscode do
+  gem 'debase',            :require => false
+  gem 'debug',             :require => false
+  gem 'rdoc', '6.2.1.1',   :require => false
+  gem 'ruby-debug-ide',    :require => false
+end
