@@ -57,21 +57,24 @@ class Color < ActiveRecord::Base
 end
 
 class RecordCacheTest < Test::Unit::TestCase
+  def self.startup
+    system('memcached -d')
+    CacheVersionMigration.up
+    CreateTables.up
+  end
+
+  def self.shutdown
+    system('killall memcached')
+    CacheVersionMigration.down
+    CreateTables.down
+  end
+
+  setup do
+    CACHE.reset
+    RecordCache::Index.enable_db
+  end
+
   context "With a memcache and db connection" do
-    setup do
-      system('memcached -d')
-      CACHE.reset
-      CreateTables.up
-      CacheVersionMigration.up
-    end
-
-    teardown do
-      system('killall memcached')
-      CreateTables.down
-      CacheVersionMigration.down
-      RecordCache::Index.enable_db
-    end
-
     should 'find_by_id with space' do
       dog = Dog.create(:name => 'Frankie')
       assert Pet.find_by_id("#{dog.id} ")
