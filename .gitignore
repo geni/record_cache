@@ -1,3 +1,7 @@
+*~
+*.swp
+.bash_history
+.bundle
 Gemfile.lock
 pkg
-*~
+vendor

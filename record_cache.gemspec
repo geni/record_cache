@@ -11,13 +11,6 @@ Gem::Specification.new do |gem|
   gem.homepage      = "https://github.com/ninjudd/record_cache"
   gem.license       = 'MIT'
 
-  gem.add_development_dependency 'shoulda', '3.0.1'
-  gem.add_development_dependency 'mocha'
-  gem.add_development_dependency 'rsolr'
-  gem.add_development_dependency 'json'
-  gem.add_development_dependency 'rake'
-  gem.add_development_dependency 'activerecord-postgresql-adapter'
-
   gem.add_dependency 'after_commit',  '>= 1.0.0'
   gem.add_dependency 'deferrable',    '>= 0.1.0'
   gem.add_dependency 'memcache',      '>= 1.0.0'
