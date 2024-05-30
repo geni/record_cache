@@ -78,6 +78,8 @@ module RecordCache
             if opts[:conditions].keys.size == 1
               opts[:conditions].each {|f,v| field, value = f,v}
             end
+          elsif !opts[:conditions].is_a?(String)
+            field = value = nil
           elsif opts[:conditions] =~ /^(?:"?#{table_name}"?\.)?"?(\w+)"? = (?:(\d+)|'(\w+)')$/i
             field, value = $1, ($3 || $2)
           elsif opts[:conditions] =~ /^(?:"?#{table_name}"?\.)?"?(\w+)"? IN \(([\d,]*)\)$/i

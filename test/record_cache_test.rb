@@ -29,6 +29,14 @@ class CreateTables < ActiveRecord::Migration
   end
 end
 
+begin
+  CacheVersionMigration.down
+  CreateTables.down
+rescue ActiveRecord::StatementInvalid => e
+  # Ignore
+end
+
+CacheVersionMigration.up
 CreateTables.up
 
 class Pet < ActiveRecord::Base
@@ -59,8 +67,6 @@ end
 class RecordCacheTest < Test::Unit::TestCase
   def self.startup
     system('memcached -d')
-    CacheVersionMigration.up
-    CreateTables.up
   end
 
   def self.shutdown
@@ -143,7 +149,6 @@ class RecordCacheTest < Test::Unit::TestCase
       assert_equal [daisy].to_set,        Dog.find_all_by_breed_id(breed1.id).to_set
 
       # Alternate find methods.
-      #assert_equal [sammy.id, daisy.id], Dog.find_set_by_breed_id([breed2.id, breed1.id]).ids
       assert_equal [sammy.id, daisy.id].to_set, Dog.find_ids_by_breed_id([breed2.id, breed1.id]).to_set
 
       assert_equal daisy, Dog.find_by_color_id(color1.id)
@@ -155,6 +160,7 @@ class RecordCacheTest < Test::Unit::TestCase
       RecordCache::Index.enable_db
 
       assert_equal [daisy, baseball], Dog.find_all_by_breed_id(breed1.id)
+      assert_equal [daisy, baseball], Dog.all(:conditions => ["breed_id IN (?)", [breed1.id]])
     end
 
     should 'create raw find methods' do

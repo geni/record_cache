@@ -62,7 +62,7 @@ module RecordCache
     end
 
     def fields_hash
-      if @fields_hash.nil?
+      unless defined?(@fields_hash)
         fields = full_record? ? model_class.column_names : self.fields
         md5 = Digest::MD5::new
         md5 << fields.sort.join(',')
@@ -353,7 +353,7 @@ module RecordCache
     end
 
     def select_fields
-      if @select_fields.nil?
+      unless defined?(@select_fields)
         if full_record?
           @select_fields = model_class.respond_to?(:default_select, true) ? model_class.send(:default_select, nil) : '*'
         else
