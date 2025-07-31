@@ -26,6 +26,7 @@ direct SQL will not.
 
   # ensure memcached is installed and in the path
 
+  createdb -Upostgres record_cache_test
   bundle exec rake test TEST_OPTS="--verbose --no-show-detail-immediately"
 
 == Install:

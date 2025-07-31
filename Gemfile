@@ -13,7 +13,7 @@ group :development do
     gem 'activeresource',   :require => false
     gem 'activesupport',    :require => false
     gem 'railties',         :require => false
-    gem 'railslts-version', :require => false
+    gem 'rack',             :require => false
   end
 
   gem 'activerecord-postgresql-adapter'

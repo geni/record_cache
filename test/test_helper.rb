@@ -16,4 +16,4 @@ ActiveRecord::Base.establish_connection(
   :database => "record_cache_test"
 )
 ActiveRecord::Migration.verbose = false
-ActiveRecord::Base.connection.client_min_messages = 'panic'
+ActiveRecord::Base.connection.client_min_messages = 'error'
