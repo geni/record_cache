@@ -11,11 +11,8 @@ Gem::Specification.new do |gem|
   gem.homepage      = "https://github.com/ninjudd/record_cache"
   gem.license       = 'MIT'
 
-  gem.add_dependency 'after_commit',  '>= 1.0.0'
   gem.add_dependency 'deferrable',    '>= 0.1.0'
-  gem.add_dependency 'memcache',      '>= 1.0.0'
-  gem.add_dependency 'cache_version', '>= 0.9.4'
-  gem.add_dependency 'activerecord',  '~> 2.3.9'
+  gem.add_dependency 'activerecord',  '~> 8.0.0'
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }

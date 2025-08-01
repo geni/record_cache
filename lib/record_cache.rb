@@ -1,6 +1,5 @@
 require 'memcache'
 require 'active_record'
-require 'after_commit'
 require 'cache_version'
 require 'deferrable'
 
@@ -53,16 +52,25 @@ module RecordCache
 
     def attr_was(attr)
       attr = attr.to_s
-      if ['id', 'type'].include?(attr) or not attribute_changed?(attr)
+
+      # In Rails 8, use saved_change_to_* methods for after_save callbacks
+      # and attribute_changed? for before_save callbacks
+      if ['id', 'type'].include?(attr)
         read_attribute(attr)
-      else
+      elsif respond_to?("saved_change_to_#{attr}?") && send("saved_change_to_#{attr}?")
+        # Use Rails 8's saved_change_to_* methods for after_save callbacks
+        send("#{attr}_before_last_save")
+      elsif attribute_changed?(attr)
+        # Fallback for before_save callbacks
         changed_attributes[attr]
+      else
+        read_attribute(attr)
       end
     end
   end
 
   module ClassMethods
-    def find_with_caching(*args, &block)
+    def find(*args, &block)
       if args.last.is_a?(Hash)
         args.last.delete_if {|k,v| v.nil?}
         args.pop if args.last.empty?
@@ -98,18 +106,40 @@ module RecordCache
         return index.find_by_ids(args, self) if index
       end
 
-      find_without_caching(*args, &block)
+      super(*args, &block)
     end
 
-    def update_all_with_invalidate(updates, conditions = nil)
-      invalidate_from_conditions(conditions, :update) do |conditions|
-        update_all_without_invalidate(updates, conditions)
+    def update_all(updates)
+      # In Rails 8, update_all doesn't take conditions as a second parameter
+      # The conditions are already applied via where() before calling update_all
+      if current_scope.present?
+        # If there's a scope (conditions), invalidate based on those conditions
+        scope_conditions = current_scope.where_values_hash
+        invalidate_from_conditions(scope_conditions, :update) do |_|
+          super(updates)
+        end
+      else
+        # No conditions - updating all records
+        invalidate_from_conditions(nil, :update) do |_|
+          super(updates)
+        end
       end
     end
 
-    def delete_all_with_invalidate(conditions = nil)
-      invalidate_from_conditions(conditions) do |conditions|
-        delete_all_without_invalidate(conditions)
+    def delete_all
+      # In Rails 8, delete_all doesn't take conditions
+      # The conditions are already applied via where() before calling delete_all
+      if current_scope.present?
+        # If there's a scope (conditions), invalidate based on those conditions
+        scope_conditions = current_scope.where_values_hash
+        invalidate_from_conditions(scope_conditions) do |_|
+          super()
+        end
+      else
+        # No conditions - deleting all records
+        invalidate_from_conditions(nil) do |_|
+          super()
+        end
       end
     end
 
@@ -126,16 +156,17 @@ module RecordCache
         # Just invalidate all indexes.
         result = yield(nil)
         self.increment_version
+
         return result
       end
 
       # Freeze ids to avoid race conditions.
-      sql = "SELECT #{id_field} FROM #{table_name} "
-      self.send(:add_conditions!, sql, conditions, self.send(:scope, :find))
-      ids = RecordCache.db(self).select_values(sql)
+      query = self.where(conditions)
+      ids = query.pluck(primary_key)
 
       return if ids.empty?
-      conditions = "#{id_field} IN (#{ids.collect {|id| quote_value(id, id_column)}.join(',')})"
+      quoted_ids = ids.collect {|id| connection.quote(id)}.join(',')
+      conditions = "#{id_field} IN (#{quoted_ids})"
 
       if block_given?
         # Capture the ids to invalidate in lambdas.
@@ -209,12 +240,21 @@ module RecordCache
 
   module ActiveRecordExtension
     def self.extended(mod)
-      mod.send(:class_inheritable_accessor, :cached_indexes)
+      mod.class_attribute :cached_indexes, default: {}
     end
 
     def record_cache(*args)
-      extend  RecordCache::ClassMethods
-      include RecordCache::InstanceMethods
+
+      #extend  RecordCache::ClassMethods
+      #include RecordCache::InstanceMethods
+      first_index = (cached_indexes.size == 0)
+
+      if first_index
+        class << self
+          prepend RecordCache::ClassMethods
+        end
+        prepend RecordCache::InstanceMethods
+      end
 
       opts = args.pop
       opts[:fields] = args
@@ -223,14 +263,13 @@ module RecordCache
 
       index = RecordCache::Index.new(opts)
       add_cached_index(index)
-      first_index = (cached_indexes.size == 1)
 
       (class << self; self; end).module_eval do
         if index.includes_id?
           [:first, :all, :set, :raw, :ids].each do |type|
             next if type == :ids and index.name == 'by_id'
             define_method( index.find_method_name(type) ) do |keys|
-              if self.send(:scope,:find) and self.send(:scope,:find).any?
+              if self.current_scope.present?
                 self.method_missing(index.find_method_name(type), keys)
               else
                 index.find_by_field(keys, self, type)
@@ -277,9 +316,9 @@ module RecordCache
         end
 
         if first_index
-          alias_method_chain :find, :caching
-          alias_method_chain :update_all, :invalidate
-          alias_method_chain :delete_all, :invalidate
+          #alias_method_chain :find, :caching
+          #alias_method_chain :update_all, :invalidate
+          #alias_method_chain :delete_all, :invalidate
         end
       end
 

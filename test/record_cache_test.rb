@@ -2,7 +2,7 @@ require 'test_helper'
 
 RecordCache::Set.source_tracking = true
 
-class CreateTables < ActiveRecord::Migration
+class CreateTables < ActiveRecord::Migration[8.0]
   def self.up
     down
     create_table :pets do |t|
@@ -32,7 +32,7 @@ end
 begin
   CacheVersionMigration.down
   CreateTables.down
-rescue ActiveRecord::StatementInvalid => e
+rescue ActiveRecord::StatementInvalid
   # Ignore
 end
 
@@ -64,7 +64,12 @@ end
 class Color < ActiveRecord::Base
 end
 
-class RecordCacheTest < Test::Unit::TestCase
+class RecordCacheTest < ActiveSupport::TestCase
+  class << self
+    attr_accessor :pitbull_retriever, :house_cat, :pitbull_terrier, :mutt
+    attr_accessor :black_and_white, :speckled, :brown
+  end
+
   def self.startup
     system('memcached -d')
   end
@@ -75,9 +80,33 @@ class RecordCacheTest < Test::Unit::TestCase
     CreateTables.down
   end
 
+  def self.init_breeds
+    self.pitbull_retriever = Breed.create(:name => 'pitbull retriever')
+    self.house_cat = Breed.create(:name => 'house cat')
+    self.pitbull_terrier = Breed.create(:name => 'pitbull terrier')
+    self.mutt = Breed.create(:name => 'mutt')
+  end
+
+  def self.init_colors
+    self.black_and_white = Color.create(:name => 'black & white')
+    self.speckled = Color.create(:name => 'speckled')
+    self.brown = Color.create(:name => 'brown')
+  end
+
+  def self.delete_all_models
+    # Clean up database between tests
+    [Dog, Cat, Pet, Breed, Color].each do |klass|
+      klass.delete_all
+    end
+    CACHE.flush_all
+  end
+
   setup do
-    CACHE.reset
     RecordCache::Index.enable_db
+    RecordCacheTest.delete_all_models
+
+    RecordCacheTest.init_breeds
+    RecordCacheTest.init_colors
   end
 
   context "With a memcache and db connection" do
@@ -87,25 +116,20 @@ class RecordCacheTest < Test::Unit::TestCase
     end
 
     should 'create field lookup functions' do
-      dog   = Breed.new(:name => 'pitbull retriever')
-      cat   = Breed.new(:name => 'house cat')
-      willy = Cat.create(:name => 'Willy', :breed => cat)
-      daisy = Dog.create(:name => 'Daisy', :breed => dog)
+      willy = Cat.create(:name => 'Willy', :breed => self.class.house_cat)
+      milly = Dog.create(:name => 'Milly', :breed => self.class.pitbull_retriever)
 
-      expected = {dog.id => daisy.id, cat.id => willy.id}
-      assert_equal expected, Pet.id_by_breed_id([dog.id, cat.id, 100, 101])
+      expected = {self.class.pitbull_retriever.id => milly.id, self.class.house_cat.id => willy.id}
+      assert_equal expected, Pet.id_by_breed_id([self.class.pitbull_retriever.id, self.class.house_cat.id, 100, 101])
     end
 
     should 'return cached values without accessing the database' do
-      color = Color.new(:name => 'black & white')
-      dog   = Breed.new(:name => 'pitbull retriever')
-      cat   = Breed.new(:name => 'house cat')
-      daisy = Dog.create(:name => 'Daisy', :color => color, :breed => dog)
-      willy = Cat.create(:name => 'Willy', :color => color, :breed => cat)
+      daisy = Dog.create(:name => 'Daisy', :color => self.class.black_and_white, :breed => self.class.pitbull_retriever)
+      willy = Cat.create(:name => 'Willy', :color => self.class.black_and_white, :breed => self.class.house_cat)
 
       Pet.find(daisy.id, willy.id)
-      Dog.find_all_by_color_id(color.id)
-      Dog.find_all_by_breed_id(dog.id)
+      Dog.find_all_by_color_id(self.class.black_and_white.id)
+      Dog.find_all_by_breed_id(self.class.pitbull_retriever.id)
 
       RecordCache::Index.disable_db
 
@@ -113,9 +137,11 @@ class RecordCacheTest < Test::Unit::TestCase
       assert_equal daisy,   Dog.find(daisy.id)
       assert_equal Cat,     Cat.find(willy.id).class
       assert_equal willy,   Cat.find(willy.id)
-      assert_equal [daisy], Dog.find_all_by_color_id(color.id)
-      assert_equal [willy], Cat.find_all_by_color_id(color.id)
-      assert_equal [daisy], Dog.find_all_by_breed_id(dog.id)
+      assert_equal [daisy], Dog.where(:color_id => self.class.black_and_white.id).all
+      assert_equal [daisy], Dog.find_all_by_color_id(self.class.black_and_white.id)
+      assert_equal [willy], Cat.find_all_by_color_id(self.class.black_and_white.id)
+      assert_equal [willy], Cat.where(:color_id => self.class.black_and_white.id).all
+      assert_equal [daisy], Dog.find_all_by_breed_id(self.class.pitbull_retriever.id)
 
       RecordCache::Index.enable_db
 
@@ -129,66 +155,60 @@ class RecordCacheTest < Test::Unit::TestCase
     end
 
     should 'return multiple cached values without accessing the database' do
-      color1 = Color.new(:name => 'black & white')
-      color2 = Color.new(:name => 'speckled')
-      breed1 = Breed.new(:name => 'pitbull retriever')
-      breed2 = Breed.new(:name => 'pitbull terrier')
-      daisy = Dog.create(:name => 'Daisy', :color => color1, :breed => breed1)
-      sammy = Dog.create(:name => 'Sammy', :color => color1, :breed => breed2)
+      winny = Dog.create(:name => 'Winny', :color => self.class.black_and_white, :breed => self.class.pitbull_retriever)
+      sammy = Dog.create(:name => 'Sammy', :color => self.class.black_and_white, :breed => self.class.pitbull_terrier)
 
-      Dog.find(daisy.id, sammy.id)
-      Dog.find_all_by_color_id(color1.id)
-      Dog.find_all_by_breed_id([breed1.id, breed2.id])
+      Dog.find(winny.id, sammy.id)
+      Dog.find_all_by_color_id(self.class.black_and_white.id)
+      Dog.find_all_by_breed_id([self.class.pitbull_retriever.id, self.class.pitbull_terrier.id])
 
       RecordCache::Index.disable_db
 
-      assert_equal [daisy, sammy].to_set, Dog.find(daisy.id, sammy.id).to_set
-      assert_equal [daisy, sammy].to_set, Dog.find_all_by_color_id(color1.id).to_set
-      assert_equal [daisy, sammy].to_set, Dog.find_all_by_breed_id([breed1.id, breed2.id]).to_set
-      assert_equal [sammy, daisy].to_set, Dog.find_all_by_breed_id([breed2.id, breed1.id]).to_set
-      assert_equal [daisy].to_set,        Dog.find_all_by_breed_id(breed1.id).to_set
+      assert_equal [winny, sammy].to_set, Dog.find(winny.id, sammy.id).to_set
+      assert_equal [winny, sammy].to_set, Dog.find_all_by_color_id(self.class.black_and_white.id).to_set
+      assert_equal [winny, sammy].to_set, Dog.where(:color_id => self.class.black_and_white.id).all.to_set
+      assert_equal [winny, sammy].to_set, Dog.find_all_by_breed_id([self.class.pitbull_retriever.id, self.class.pitbull_terrier.id]).to_set
+      assert_equal [sammy, winny].to_set, Dog.find_all_by_breed_id([self.class.pitbull_terrier.id, self.class.pitbull_retriever.id]).to_set
+      assert_equal [winny].to_set,        Dog.find_all_by_breed_id(self.class.pitbull_retriever.id).to_set
 
       # Alternate find methods.
-      assert_equal [sammy.id, daisy.id].to_set, Dog.find_ids_by_breed_id([breed2.id, breed1.id]).to_set
+      assert_equal [sammy.id, winny.id].to_set, Dog.find_ids_by_breed_id([self.class.pitbull_terrier.id, self.class.pitbull_retriever.id]).to_set
 
-      assert_equal daisy, Dog.find_by_color_id(color1.id)
-      assert_equal daisy, Dog.find_by_breed_id([breed1.id, breed2.id])
-      assert_equal sammy, Dog.find_by_breed_id([breed2.id, breed1.id])
+      assert_equal winny, Dog.find_by_color_id(self.class.black_and_white.id)
+      assert_equal winny, Dog.find_by_breed_id([self.class.pitbull_retriever.id, self.class.pitbull_terrier.id])
+      assert_equal sammy, Dog.find_by_breed_id([self.class.pitbull_terrier.id, self.class.pitbull_retriever.id])
 
-      baseball = Dog.create(:name => 'Baseball', :color => color2, :breed => breed1)
+      baseball = Dog.create(:name => 'Baseball', :color => self.class.speckled, :breed => self.class.pitbull_retriever)
 
       RecordCache::Index.enable_db
 
-      assert_equal [daisy, baseball], Dog.find_all_by_breed_id(breed1.id)
-      assert_equal [daisy, baseball], Dog.all(:conditions => ["breed_id IN (?)", [breed1.id]])
+      assert_equal [winny, baseball], Dog.find_all_by_breed_id(self.class.pitbull_retriever.id)
+      assert_equal [winny, baseball], Dog.where(["breed_id IN (?)", [self.class.pitbull_retriever.id]]).all
     end
 
     should 'create raw find methods' do
-      daisy = Dog.create(:name => 'Daisy')
+      sandy = Dog.create(:name => 'Sandy')
       sammy = Dog.create(:name => 'Sammy')
 
-      Dog.find(daisy.id, sammy.id)
+      Dog.find(sandy.id, sammy.id)
       RecordCache::Index.disable_db
 
-      raw_records = Dog.find_raw_by_id([sammy.id, daisy.id])
-      assert_equal ['Sammy', 'Daisy'], raw_records.collect {|r| r['name']}
+      raw_records = Dog.find_raw_by_id([sammy.id, sandy.id])
+      assert_equal ['Sammy', 'Sandy'], raw_records.collect {|r| r['name']}
     end
 
     should 'cache indexes using scope' do
-      color  = Color.new(:name => 'black & white')
-      breed1 = Breed.new(:name => 'pitbull retriever')
-      breed2 = Breed.new(:name => 'pitbull terrier')
-      daisy = Dog.create(:name => 'Daisy', :color => color, :breed => breed1, :sex => 'f')
-      sammy = Dog.create(:name => 'Sammy', :color => color, :breed => breed2, :sex => 'm')
+      sunny = Dog.create(:name => 'Sunny', :color => self.class.black_and_white, :breed => self.class.pitbull_retriever, :sex => 'f')
+      sammy = Dog.create(:name => 'Sammy', :color => self.class.black_and_white, :breed => self.class.pitbull_terrier, :sex => 'm')
 
-      assert_equal [sammy],        Dog.find_all_male_by_color_id(color.id)
-      assert_equal [daisy],        Dog.find_all_female_by_color_id(color.id)
-      assert_equal [daisy, sammy], Dog.find_all_colors(color.id)
+      assert_equal [sammy],        Dog.find_all_male_by_color_id(self.class.black_and_white.id)
+      assert_equal [sunny],        Dog.find_all_female_by_color_id(self.class.black_and_white.id)
+      assert_equal [sunny, sammy], Dog.find_all_colors(self.class.black_and_white.id)
 
-      cousin = Dog.create(:name => 'Cousin', :color => color, :breed => breed2, :sex => 'm')
+      cousin = Dog.create(:name => 'Cousin', :color => self.class.black_and_white, :breed => self.class.pitbull_terrier, :sex => 'm')
 
-      assert_equal [sammy, cousin],        Dog.find_all_male_by_color_id(color.id)
-      assert_equal [daisy, sammy, cousin], Dog.find_all_colors(color.id)
+      assert_equal [sammy, cousin],        Dog.find_all_male_by_color_id(self.class.black_and_white.id)
+      assert_equal [sunny, sammy, cousin], Dog.find_all_colors(self.class.black_and_white.id)
     end
 
     should 'yield cached indexes' do
@@ -200,23 +220,19 @@ class RecordCacheTest < Test::Unit::TestCase
     end
 
     should 'invalidate indexes on save' do
-      b_w   = Color.new(:name => 'black & white')
-      brown = Color.new(:name => 'brown')
-      breed = Breed.new(:name => 'mutt')
-      daisy = Dog.create(:name => 'Daisy', :color => b_w, :breed => breed, :sex => 'f')
+      millie = Dog.create(:name => 'Millie', :color => self.class.black_and_white, :breed => self.class.mutt, :sex => 'f')
 
-      assert_equal daisy, Dog.find_by_color_id(b_w.id)
+      assert_equal millie, Dog.find_by_color_id(self.class.black_and_white.id)
 
-      daisy.name  = 'Molly'
-      daisy.color = brown
-      daisy.save
+      millie.name  = 'Molly'
+      millie.color = self.class.brown
+      millie.save
 
-      assert_equal 'Molly', daisy.name
-      assert_equal brown.id, daisy.color_id
+      assert_equal 'Molly', millie.name
+      assert_equal self.class.brown.id, millie.color_id
 
-      assert_equal daisy, Dog.find_by_color_id(brown.id)
-      assert_equal nil,   Dog.find_by_color_id(b_w.id)
+      assert_equal millie, Dog.find_by_color_id(self.class.brown.id)
+      assert_nil           Dog.find_by_color_id(self.class.black_and_white.id)
     end
-
   end
 end

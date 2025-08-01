@@ -38,7 +38,7 @@ module RecordCache
         records.replace(sorted_records)
       end
     end
-    
+
     def limit!(limit)
       all_records = records
       if all_records.length > limit
@@ -54,12 +54,12 @@ module RecordCache
       mark_updated!
       record_type  = record['type']
       record['id'] = record['id'].to_i if record.has_key?('id')
-      
+
       [record_type, model_class.to_s].uniq.each do |type|
         records_by_type(type) << record
       end
     end
-    
+
     def delete(record)
       raise 'cannot delete record without id' unless record.has_key?('id')
       mark_updated!
@@ -82,7 +82,7 @@ module RecordCache
     def size
       records.size
     end
-    
+
     def empty?
       records.empty?
     end
@@ -94,7 +94,7 @@ module RecordCache
     def fields(field, type)
       records(type).collect {|r| type_cast(field, r[field])}
     end
-      
+
     def all_fields(type = model_class, opts = {})
       records(type).collect do |r|
         record = {}
@@ -127,15 +127,14 @@ module RecordCache
     end
 
   private
-    
+
     def mark_updated!
       @updated_at = Time.now if self.class.source_tracking?
     end
 
     def type_cast(field, value)
-      column = model_class.columns_hash[field.to_s]
-      raise 'column not found in #{model_class} for field #{field}' unless column
-      column.type_cast(value)
+      # Use the model class's type casting which handles all the Rails 8 type system properly
+      model_class.type_for_attribute(field.to_s).cast(value)
     end
   end
 end
