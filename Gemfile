@@ -6,27 +6,19 @@ gem 'cache_version', git: 'https://github.com/geni/cache_version.git', branch: '
 gem 'memcache', git: 'https://github.com/stangel/memcache.git', branch: 'ruby-3'
 
 group :development do
-  gem 'rails', '~>8.0'
-  gem 'actionmailer',     :require => false
-  gem 'actionpack',       :require => false
-  gem 'activerecord',     :require => false
-  gem 'activeresource',   :require => false
-  gem 'activesupport',    :require => false
-  gem 'railties',         :require => false
-  gem 'rack',             :require => false
-
-  gem 'activerecord-postgresql-adapter'
-  gem 'json'
-  gem 'minitest'
-  gem 'mocha'
+  gem 'activerecord', '~>8.0'
+  gem 'method_source' # for bin/test
+  gem 'pg', '~>1.5.0' # 1.6 requires GLIBC 2.29 which CentOS 8 Stream doesn't have
   gem 'rake'
-  gem 'shoulda', '~>3'
   gem 'test-unit'
 end
 
 group :vscode do
-  gem 'debase',            :require => false
-  gem 'debug',             :require => false
-  gem 'rdoc', '6.2.1',     :require => false
-  gem 'ruby-debug-ide',    :require => false
+  gem 'debase',           :require => false
+  gem 'debug',            :require => false
+  gem 'rainbow',          :require => false
+  gem 'rdbg',             :require => false
+  gem 'ruby-debug-ide',   :require => false
+  gem 'ruby-lsp',         :require => false
+  gem 'solargraph',       :require => false
 end

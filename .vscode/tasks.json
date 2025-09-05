@@ -11,14 +11,23 @@
         "clear": true,
       }
     },{
-      "label": "run debuggable console",
+      "label": "run all tests in file",
       "group": "test",
       "type": "shell",
-      "command": "bundle exec rdbg --open -c -- irb -r irb/completion -r ${workspaceFolder}/config/environment -r console_app -r console_with_helpers --simple-prompt",
+      "command": "bundle exec bin/test test ${file}",
       "problemMatcher": [],
       "presentation": {
-        "clear": true,
+        "clear": true
       }
+    },{
+      "label": "run current test in file",
+      "group": "test",
+      "type": "shell",
+      "command": "bundle exec bin/test ${file}:${lineNumber}",
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true
+      },
     }
   ]
 }

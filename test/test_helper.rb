@@ -1,8 +1,4 @@
-require 'rubygems'
-gem 'mocha'
-require 'minitest/autorun'
-require 'mocha/minitest'
-require 'shoulda'
+require 'test-unit'
 require 'pp'
 
 require 'record_cache'

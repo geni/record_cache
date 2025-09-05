@@ -1,11 +1,14 @@
 {
   "version": "0.2.0",
   "configurations": [
-    {
-      // execute the 'run debuggable console' task first
-      "name": "Attach to running process",
+   {
+      "name": "Debug test at cursor",
       "type": "rdbg",
-      "request": "attach",
+      "request": "launch",
+      "useBundler": true,
+      "script": "bin/test",
+      "args": ["${file}:${lineNumber}"],
+      "askParameters": false
     },
   ]
 }
