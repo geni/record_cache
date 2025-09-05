@@ -18,15 +18,7 @@ module RecordCache
   end
 
   def self.db(model_class)
-    db = model_class.connection
-
-    # Always use the master connection since we are caching.
-    @has_data_fabric ||= defined?(DataFabric::ConnectionProxy)
-    if @has_data_fabric and db.kind_of?(DataFabric::ConnectionProxy)
-      model_class.record_cache_config[:use_slave] ? db.send(:connection) : db.send(:master)
-    else
-      db
-    end
+    model_class.connection
   end
 
   module InstanceMethods
