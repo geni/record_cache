@@ -11,10 +11,11 @@ module RecordCache
     def initialize(opts)
       raise ':by => index_field required for cache'       if opts[:by].nil?
       raise 'explicit name or prefix required with scope' if opts[:scope] and opts[:name].nil? and opts[:prefix].nil?
+      opts = RecordCache.config.merge(opts)
 
       @auto_name     = opts[:name].nil?
       @write_ahead   = opts[:write_ahead]
-      @cache         = opts[:cache].kind_of?(Symbol) ? Memcache.pool[opts[:cache]] : (opts[:cache] || CACHE)
+      @cache         = opts[:cache].kind_of?(Symbol) ? Memcache.pool[opts[:cache]] : opts[:cache]
       @expiry        = opts[:expiry]
       @model_class   = opts[:class]
       @set_class     = opts[:set_class] || "#{@model_class}Set"

@@ -4,6 +4,8 @@ require 'pp'
 require 'record_cache'
 
 CACHE = Memcache.new(:servers => ['localhost'])
+RecordCache.config(:cache => CACHE)
+
 ActiveRecord::Base.establish_connection(
   :adapter  => "postgresql",
   :host     => "localhost",
