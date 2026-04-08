@@ -8,7 +8,7 @@ RecordCache.config(:cache => CACHE)
 
 ActiveRecord::Base.establish_connection(
   :adapter  => "postgresql",
-  :host     => "localhost",
+  :host     => ENV.fetch('DB_HOST', 'localhost'),
   :username => `whoami`.chomp.tr('.', '_'),
   :password => "",
   :database => "record_cache_test"
