@@ -9,7 +9,7 @@ RecordCache.config(:cache => CACHE)
 ActiveRecord::Base.establish_connection(
   :adapter  => "postgresql",
   :host     => ENV.fetch('DB_HOST', 'localhost'),
-  :username => `postgres',
+  :username => 'postgres',
   :password => "",
   :database => "record_cache_test"
 )
