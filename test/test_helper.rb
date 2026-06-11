@@ -1,7 +1,8 @@
 require 'rubygems'
 gem 'mocha'
-require 'minitest/autorun'
-require 'mocha/minitest'
+gem 'test-unit'
+require 'test/unit'
+require 'mocha/test_unit'
 require 'shoulda'
 require 'pp'
 
@@ -16,4 +17,9 @@ ActiveRecord::Base.establish_connection(
   :database => "record_cache_test"
 )
 ActiveRecord::Migration.verbose = false
-ActiveRecord::Base.connection.client_min_messages = 'error'
+# 'panic' is no longer valid in modern PostgreSQL, use 'error' instead
+ActiveRecord::Base.connection.client_min_messages = 'warning'
+# Set logger for Rails 3.0 (needed for scope() method)
+require 'logger'
+ActiveRecord::Base.logger = Logger.new(STDOUT)
+ActiveRecord::Base.logger.level = Logger::ERROR

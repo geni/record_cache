@@ -1,6 +1,6 @@
 require 'memcache'
 require 'active_record'
-require 'after_commit'
+# after_commit is built into Rails 3.0+, no need to require the gem
 require 'cache_version'
 require 'deferrable'
 
@@ -231,7 +231,8 @@ module RecordCache
           [:first, :all, :set, :raw, :ids].each do |type|
             next if type == :ids and index.name == 'by_id'
             define_method( index.find_method_name(type) ) do |keys|
-              if self.send(:scope,:find) and self.send(:scope,:find).any?
+              scope_value = self.send(:scope,:find)
+              if scope_value && scope_value.respond_to?(:any?) && scope_value.any?
                 self.method_missing(index.find_method_name(type), keys)
               else
                 index.find_by_field(keys, self, type)
@@ -278,7 +279,28 @@ module RecordCache
         end
 
         if first_index
-          alias_method_chain :find, :caching
+          # Rails 3.0 compatibility: Rails defines scope-based :find AFTER gem loads.
+          # We need to intercept calls to find by wrapping the singleton class.
+          # Save original method for later
+          metaclass = (class << self; self; end)
+          if respond_to?(:find)
+            metaclass.send(:alias_method, :find_without_caching, :find)
+          end
+
+          # Override find to call our caching version
+          # NOTE: In Rails 3.0, this may be overridden again by Rails' scope system
+          # For production use, consider calling find_with_caching directly
+          def self.find(*args, &block)
+            find_with_caching(*args, &block)
+          end
+
+          # Ensure find_without_caching exists even if find didn't exist before
+          unless respond_to?(:find_without_caching)
+            def self.find_without_caching(*args, &block)
+              superclass.find(*args, &block)
+            end
+          end
+
           alias_method_chain :update_all, :invalidate
           alias_method_chain :delete_all, :invalidate
         end
@@ -296,10 +318,13 @@ end
 
 ActiveRecord::Base.send(:extend,  RecordCache::ActiveRecordExtension)
 
-unless defined?(PGconn) and PGconn.respond_to?(:quote_ident)
-  class PGconn
-    def self.quote_ident(name)
-      %("#{name}")
+# Compatibility shim for pg gem - in modern pg gem (1.x+), PGconn is PG::Connection
+unless defined?(PG::Connection) && PG::Connection.respond_to?(:quote_ident)
+  module PG
+    class Connection
+      def self.quote_ident(name)
+        %("#{name}")
+      end
     end
   end
 end

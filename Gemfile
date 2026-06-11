@@ -5,20 +5,10 @@ gemspec
 gem "memcache", :git => 'https://github.com/stangel/memcache.git'
 
 group :development do
-  git 'https://github.com/makandra/rails.git', :branch => '2-3-lts' do
-    gem 'rails', '~>2.3.18'
-    gem 'actionmailer',     :require => false
-    gem 'actionpack',       :require => false
-    gem 'activerecord',     :require => false
-    gem 'activeresource',   :require => false
-    gem 'activesupport',    :require => false
-    gem 'railties',         :require => false
-    gem 'rack',             :require => false
-  end
-
+  gem 'rails', '3.0.20'
   gem 'activerecord-postgresql-adapter'
   gem 'json'
-  gem 'minitest'
+  gem 'minitest', '~> 4.7'
   gem 'mocha'
   gem 'pg', '~> 1.2.3'
   gem 'rake'
@@ -27,8 +17,7 @@ group :development do
 end
 
 group :vscode do
-  gem 'debase',            :require => false
-  gem 'debug',             :require => false
-  gem 'rdoc', '6.2.1.1',   :require => false
+  # VSCode debugging gems for Rails 3.0
   gem 'ruby-debug-ide',    :require => false
+  gem 'ruby-debug-base19', :require => false
 end
