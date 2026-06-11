@@ -1,11 +1,13 @@
-require 'test-unit'
+require 'rubygems'
+gem 'mocha'
+require 'minitest/autorun'
+require 'mocha/minitest'
+require 'shoulda'
 require 'pp'
 
 require 'record_cache'
 
 CACHE = Memcache.new(:servers => ['localhost'])
-RecordCache.config(:cache => CACHE)
-
 ActiveRecord::Base.establish_connection(
   :adapter  => "postgresql",
   :host     => ENV.fetch('DB_HOST', 'localhost'),

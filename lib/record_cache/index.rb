@@ -11,11 +11,10 @@ module RecordCache
     def initialize(opts)
       raise ':by => index_field required for cache'       if opts[:by].nil?
       raise 'explicit name or prefix required with scope' if opts[:scope] and opts[:name].nil? and opts[:prefix].nil?
-      opts = RecordCache.config.merge(opts)
 
       @auto_name     = opts[:name].nil?
       @write_ahead   = opts[:write_ahead]
-      @cache         = opts[:cache].kind_of?(Symbol) ? Memcache.pool[opts[:cache]] : opts[:cache]
+      @cache         = opts[:cache].kind_of?(Symbol) ? Memcache.pool[opts[:cache]] : (opts[:cache] || CACHE)
       @expiry        = opts[:expiry]
       @model_class   = opts[:class]
       @set_class     = opts[:set_class] || "#{@model_class}Set"
@@ -158,9 +157,9 @@ module RecordCache
           all_fields.concat(fields)
         elsif flag == :first
           next if fields.empty?
-          field_by_index[model_class.type_for_attribute(index_field).cast(key)] = fields.first
+          field_by_index[index_column.type_cast(key)] = fields.first
         else
-          field_by_index[model_class.type_for_attribute(index_field).cast(key)] = fields
+          field_by_index[index_column.type_cast(key)] = fields
         end
       end
       if flag == :all
@@ -182,8 +181,9 @@ module RecordCache
     end
 
     def invalidate_from_conditions_lambda(conditions)
-      query = model_class.where(conditions)
-      ids = query.pluck(index_field)
+      sql = "SELECT #{index_field} FROM #{table_name} "
+      model_class.send(:add_conditions!, sql, conditions, model_class.send(:scope, :find))
+      ids = db.select_values(sql)
       lambda { invalidate(*ids) }
     end
 
@@ -264,8 +264,6 @@ module RecordCache
 
     MAX_FETCH = 1000
     def get_records(keys)
-      keys = stringify(keys)
-
       cache.in_namespace(namespace) do
         opts = {
           :expiry        => expiry,
@@ -286,7 +284,6 @@ module RecordCache
 
             db.select_all(sql).each do |record|
               key = record[index_field] || NULL
-              key = key.to_s unless key == NULL  # Convert to string to match fetched_records keys
               if fetched_records[key]
                 fetched_records[key] << record
               else
@@ -319,7 +316,7 @@ module RecordCache
       return if model_class.record_cache_config[:disable_write]
 
       record = model.attributes
-      key    = stringify([model.attr_was(index_field)]).first
+      key    = model.attr_was(index_field) || NULL
 
       now_and_later do
         cache.in_namespace(namespace) do
@@ -338,7 +335,7 @@ module RecordCache
 
       record = model_to_record(model)
       return unless record
-      key = stringify([record[index_field]]).first
+      key = record[index_field] || NULL
 
       now_and_later do
         cache.in_namespace(namespace) do
@@ -381,16 +378,11 @@ module RecordCache
     end
 
     def quote_index_value(value)
-      model_class.connection.quote(value)
+      model_class.quote_value(value, index_column)
     end
 
     def index_column
       @index_column ||= model_class.columns_hash[index_field]
-    end
-
-    def numeric_column?
-      return false unless index_column
-      [:integer, :decimal, :float, :bigint].include?(index_column.type)
     end
 
     def table_name
@@ -401,7 +393,7 @@ module RecordCache
       keys.compact! if disallow_null?
       keys.collect do |key|
         key = key.nil? ? NULL : key.to_s
-        numeric_column? ? key.strip : key
+        index_column.number? ? key.strip : key
       end.uniq
     end
 

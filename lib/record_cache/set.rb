@@ -133,8 +133,9 @@ module RecordCache
     end
 
     def type_cast(field, value)
-      # Use the model class's type casting which handles all the Rails 8 type system properly
-      model_class.type_for_attribute(field.to_s).cast(value)
+      column = model_class.columns_hash[field.to_s]
+      raise 'column not found in #{model_class} for field #{field}' unless column
+      column.type_cast(value)
     end
   end
 end
