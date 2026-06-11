@@ -1,10 +1,15 @@
 #!/bin/sh
-# Patch Rails 3.0.20 for Ruby 2.7+ compatibility
+# Patch Rails 3.2.x for Ruby 2.7+ compatibility
 # Based on tr8n gem's patch script
 
-TIMEZONE_FILE="vendor/bundle/ruby/2.7.0/gems/activesupport-3.0.20/lib/active_support/values/time_zone.rb"
-BIGDECIMAL_FILE="vendor/bundle/ruby/2.7.0/gems/activesupport-3.0.20/lib/active_support/core_ext/big_decimal/conversions.rb"
-POSTGRESQL_FILE="vendor/bundle/ruby/2.7.0/gems/activerecord-3.0.20/lib/active_record/connection_adapters/postgresql_adapter.rb"
+# Find the Rails gem directories dynamically
+ACTIVESUPPORT_DIR=$(find vendor/bundle/ruby/2.7.0/gems/activesupport-3.* -maxdepth 0 -type d 2>/dev/null | head -1)
+ACTIVERECORD_DIR=$(find vendor/bundle/ruby/2.7.0/gems/activerecord-3.* -maxdepth 0 -type d 2>/dev/null | head -1)
+AREL_DIR=$(find vendor/bundle/ruby/2.7.0/gems/arel-* -maxdepth 0 -type d 2>/dev/null | head -1)
+
+TIMEZONE_FILE="$ACTIVESUPPORT_DIR/lib/active_support/values/time_zone.rb"
+BIGDECIMAL_FILE="$ACTIVESUPPORT_DIR/lib/active_support/core_ext/big_decimal/conversions.rb"
+POSTGRESQL_FILE="$ACTIVERECORD_DIR/lib/active_record/connection_adapters/postgresql_adapter.rb"
 
 # Patch 1: Fix TimeZone#parse circular argument reference
 if [ -f "$TIMEZONE_FILE" ]; then
@@ -31,14 +36,35 @@ if [ -f "$BIGDECIMAL_FILE" ]; then
   fi
 fi
 
+# Patch 2b: Fix BigDecimal.new removed in Ruby 2.7 (Rails 3.2 duplicable.rb)
+DUPLICABLE_FILE="$ACTIVESUPPORT_DIR/lib/active_support/core_ext/object/duplicable.rb"
+if [ -f "$DUPLICABLE_FILE" ]; then
+  if grep -q "BigDecimal\.new" "$DUPLICABLE_FILE"; then
+    echo "Patching BigDecimal.new for Ruby 2.7 compatibility..."
+    # Replace BigDecimal.new with BigDecimal() for Ruby 2.7+
+    sed -i "s/BigDecimal\.new(/BigDecimal(/g" "$DUPLICABLE_FILE"
+    echo "BigDecimal.new patch applied successfully"
+  fi
+fi
+
 # Patch 3: Fix PGconn renamed to PG::Connection in pg gem 1.x AND panic -> error
 if [ -f "$POSTGRESQL_FILE" ]; then
   NEEDS_PATCH=0
-  if grep -q "PGconn" "$POSTGRESQL_FILE"; then
+
+  # Rails 3.2 specific: Remove the hard-coded pg version requirement
+  if grep -q "gem 'pg', '~> 0.11'" "$POSTGRESQL_FILE"; then
+    echo "Patching PostgreSQL adapter pg version requirement..."
+    sed -i "/gem 'pg', '~> 0.11'/d" "$POSTGRESQL_FILE"
+    NEEDS_PATCH=1
+  fi
+
+  if grep -q "PGconn\|PGresult\|PGError" "$POSTGRESQL_FILE"; then
     echo "Patching PostgreSQL adapter for pg gem 1.x..."
-    # Replace all PGconn references with PG::Connection
+    # Replace all PGconn, PGresult, and PGError references with PG:: equivalents
     sed -i 's/PGconn\./PG::Connection./g' "$POSTGRESQL_FILE"
     sed -i 's/PGconn::/PG::Connection::/g' "$POSTGRESQL_FILE"
+    sed -i 's/\bPGresult\b/PG::Result/g' "$POSTGRESQL_FILE"
+    sed -i 's/\bPGError\b/PG::Error/g' "$POSTGRESQL_FILE"
     NEEDS_PATCH=1
   fi
   if grep -q "'panic'" "$POSTGRESQL_FILE"; then
@@ -56,8 +82,8 @@ if [ -f "$POSTGRESQL_FILE" ]; then
   fi
 fi
 
-# Patch 4: Fix Arel 2.0.10 SQLite Integer visitor for Rails 3.0
-AREL_VISITOR_FILE="vendor/bundle/ruby/2.7.0/gems/arel-2.0.10/lib/arel/visitors/to_sql.rb"
+# Patch 4: Fix Arel Integer visitor for Rails 3.x
+AREL_VISITOR_FILE="$AREL_DIR/lib/arel/visitors/to_sql.rb"
 if [ -f "$AREL_VISITOR_FILE" ]; then
   if grep -q "visit_Integer" "$AREL_VISITOR_FILE"; then
     echo "Arel visitor already patched for Integer support"

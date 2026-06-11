@@ -210,7 +210,12 @@ module RecordCache
 
   module ActiveRecordExtension
     def self.extended(mod)
-      mod.send(:class_inheritable_accessor, :cached_indexes)
+      # Rails 3.2+ uses class_attribute instead of class_inheritable_accessor
+      if mod.respond_to?(:class_attribute)
+        mod.send(:class_attribute, :cached_indexes)
+      else
+        mod.send(:class_inheritable_accessor, :cached_indexes)
+      end
     end
 
     def record_cache(*args)

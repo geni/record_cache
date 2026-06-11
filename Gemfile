@@ -5,8 +5,7 @@ gemspec
 gem "memcache", :git => 'https://github.com/stangel/memcache.git'
 
 group :development do
-  gem 'rails', '3.0.20'
-  gem 'activerecord-postgresql-adapter'
+  gem 'rails', '3.2.22.5'
   gem 'json'
   gem 'minitest', '~> 4.7'
   gem 'mocha'
@@ -17,7 +16,7 @@ group :development do
 end
 
 group :vscode do
-  # VSCode debugging gems for Rails 3.0
+  # VSCode debugging gems for Rails 3.2
   gem 'ruby-debug-ide',    :require => false
   gem 'ruby-debug-base19', :require => false
 end
