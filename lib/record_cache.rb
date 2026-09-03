@@ -7,6 +7,7 @@ $:.unshift(File.dirname(__FILE__))
 require 'record_cache/index'
 require 'record_cache/set'
 require 'record_cache/scope'
+require 'record_cache/relation'
 
 module RecordCache
   def self.config(opts = nil)

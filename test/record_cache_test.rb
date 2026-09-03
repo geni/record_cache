@@ -234,4 +234,39 @@ class RecordCacheTest < Test::Unit::TestCase
     assert_nil           Dog.find_by_color_id(self.class.black_and_white.id)
   end
 
+  test 'invalidate indexes on relation update_all' do
+    millie = Dog.create(:name => 'Millie', :color => self.class.black_and_white, :breed => self.class.mutt, :sex => 'f')
+
+    assert_equal [millie], Dog.find_all_by_color_id(self.class.black_and_white.id)
+
+    Dog.where(:id => millie.id).update_all(:color_id => self.class.brown.id)
+
+    assert_equal [millie], Dog.find_all_by_color_id(self.class.brown.id)
+    assert_equal [],       Dog.find_all_by_color_id(self.class.black_and_white.id)
+    assert_equal self.class.brown.id, Dog.find(millie.id).color_id
+  end
+
+  test 'invalidate indexes on relation update_all without conditions' do
+    millie = Dog.create(:name => 'Millie', :color => self.class.black_and_white, :breed => self.class.mutt, :sex => 'f')
+
+    assert_equal [millie], Dog.find_all_by_color_id(self.class.black_and_white.id)
+
+    Dog.all.update_all(:color_id => self.class.brown.id)
+
+    assert_equal [millie], Dog.find_all_by_color_id(self.class.brown.id)
+    assert_equal [],       Dog.find_all_by_color_id(self.class.black_and_white.id)
+  end
+
+  test 'invalidate indexes on relation delete_all' do
+    millie = Dog.create(:name => 'Millie', :color => self.class.black_and_white, :breed => self.class.mutt, :sex => 'f')
+    winny  = Dog.create(:name => 'Winny',  :color => self.class.black_and_white, :breed => self.class.mutt, :sex => 'm')
+
+    assert_equal [millie, winny], Dog.find_all_by_color_id(self.class.black_and_white.id)
+
+    Dog.where(:id => millie.id).delete_all
+
+    assert_equal [winny], Dog.find_all_by_color_id(self.class.black_and_white.id)
+    assert_nil            Dog.find_by_id(millie.id)
+  end
+
 end # class RecordCacheTest
